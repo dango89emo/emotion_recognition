@@ -16,5 +16,4 @@ v = torch.load(model_name)
 with torch.no_grad:
     preds = v(img)
     predicted_emotion = classes[preds[0].argmax(0)]
-
     print(f"この声の感情は、{predicted_emotion}です。")
