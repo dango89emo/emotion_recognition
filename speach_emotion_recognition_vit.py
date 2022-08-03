@@ -13,19 +13,25 @@ import argparse
 import json
 
 
-def train_main(model, criterion, train_loader, valid_loader):
+def train_main(model, criterion, optimizer, train_loader, valid_loader, local):
     train_acc_list = []
     val_acc_list = []
     train_loss_list = []
     val_loss_list = []
 
-    for epoch in range(TorchParams.epochs):
+    for epoch in range(TorchParams.hyper_param['epochs']):
         epoch_loss = 0
         epoch_accuracy = 0
 
+        print(f'epoch: {epoch}')
+
+        i = 1
         for data, label in tqdm(train_loader):
-            data = data.to(TorchParams.device)
-            label = label.to(TorchParams.device)
+            if not local:
+                data = data.to(TorchParams.device)
+                label = label.to(TorchParams.device)
+
+            print(f'batch {i}')
 
             output = model(data)
             loss = criterion(output, label)
@@ -36,14 +42,17 @@ def train_main(model, criterion, train_loader, valid_loader):
 
             acc = (output.argmax(dim=1) == label).float().mean()
             epoch_accuracy += acc / len(train_loader)
-            epoch_loss += loss / len(train_loader)              
+            epoch_loss += loss / len(train_loader)
+
+            i += 1         
 
         with torch.no_grad():
             epoch_val_accuracy = 0
             epoch_val_loss = 0
             for data, label in valid_loader:
-                data = data.to(TorchParams.device)
-                label = label.to(TorchParams.device)
+                if not local:
+                    data = data.to(TorchParams.device)
+                    label = label.to(TorchParams.device)
 
                 val_output = model(data)
                 val_loss = criterion(val_output, label)
@@ -61,33 +70,46 @@ def train_main(model, criterion, train_loader, valid_loader):
         val_loss_list.append(epoch_val_loss)
 
     #出力したテンソルのデバイスをCPUへ切り替える
-    device2 = torch.device(TorchParams.device2)
+    if not local:
+        device2 = torch.device(TorchParams.device2)
 
     train_acc = []
     train_loss = []
     val_acc = []
     val_loss = []
 
-    for i in range(TorchParams.epochs):
-        train_acc2 = train_acc_list[i].to(device2)
+    for i in range(TorchParams.hyper_param['epochs']):
+        if not local:
+            train_acc2 = train_acc_list[i].to(device2)
+        else:
+            train_acc2 = train_acc_list[i]
         train_acc3 = train_acc2.clone().numpy()
         train_acc.append(train_acc3)
 
-        train_loss2 = train_loss_list[i].to(device2)
+        if not local:
+            train_loss2 = train_loss_list[i].to(device2)
+        else:
+            train_loss2 = train_loss_list[i]
         train_loss3 = train_loss2.clone().detach().numpy()
         train_loss.append(train_loss3)
 
-        val_acc2 = val_acc_list[i].to(device2)
+        if not local:
+            val_acc2 = val_acc_list[i].to(device2)
+        else:
+            val_acc2 = val_acc_list[i]
         val_acc3 = val_acc2.clone().numpy()
         val_acc.append(val_acc3)
 
-        val_loss2 = val_loss_list[i].to(device2)
+        if not local:
+            val_loss2 = val_loss_list[i].to(device2)
+        else:
+            val_loss2 = val_loss_list[i]
         val_loss3 = val_loss2.clone().numpy()
         val_loss.append(val_loss3)
 
     #取得したデータをグラフ化する
     sns.set()
-    num_epochs = TorchParams.epochs
+    num_epochs = TorchParams.hyper_param['epochs']
 
     plt.subplots(figsize=(12, 4), dpi=80)
 
@@ -118,6 +140,7 @@ def seed_everything():
     torch.cuda.manual_seed_all(TorchParams.seed)
     torch.backends.cudnn.deterministic = True
 
+
 def _parse_args():
     parser = argparse.ArgumentParser()
 
@@ -132,22 +155,31 @@ def _parse_args():
     return parser.parse_known_args()
 
 
-def train():
-    args, unknown = _parse_args()
-
-    train_loader = torch.load(os.path.join(args.train, Path.TRAIN_LOADER.split("/")[-1]))
-    test_loader = torch.load(os.path.join(args.train, Path.TEST_LOADER.split("/")[-1]))
+def train(local=False):
+    if not local:
+        args, unknown = _parse_args()
+        train_loader = torch.load(os.path.join(args.train, Path.TRAIN_LOADER.split("/")[-1]))
+        test_loader = torch.load(os.path.join(args.train, Path.TEST_LOADER.split("/")[-1]))
+    else:
+        train_loader = torch.load(Path.TRAIN_LOADER)
+        test_loader = torch.load(Path.TEST_LOADER)
 
     model=timm.create_model(TorchParams.pretrained_model, pretrained=True, num_classes=len(TorchParams.classes))
-    model.to("cuda:0")
-    criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=TorchParams.learning_rate)
-    scheduler = StepLR(optimizer, step_size=1, gamma=TorchParams.gamma)
-    seed_everything()
-    train(model, criterion, train_loader, valid_loader)
     
+    if not local:
+        model.to("cuda:0")
+
+    criterion = nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=TorchParams.hyper_param['lr'])
+    scheduler = StepLR(optimizer, step_size=1, gamma=TorchParams.hyper_param['momentum'])
+    seed_everything()
+    train_main(model, criterion, optimizer, train_loader, test_loader, local)
+    
+    if not args:
+        return
+
     if args.current_host == args.hosts[0]:
         torch.save(model, os.path.join(args.sm_model_dir, TorchParams.model_name))
 
 if __name__=="__main__":
-    train()
+    train(True)
