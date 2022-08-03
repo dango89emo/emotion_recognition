@@ -78,7 +78,7 @@ def train_main(model, criterion, optimizer, train_loader, valid_loader, local):
     val_acc = []
     val_loss = []
 
-    for i in range(TorchParams.epochs):
+    for i in range(TorchParams.hyper_param['epochs']):
         if not local:
             train_acc2 = train_acc_list[i].to(device2)
         else:
@@ -109,7 +109,7 @@ def train_main(model, criterion, optimizer, train_loader, valid_loader, local):
 
     #取得したデータをグラフ化する
     sns.set()
-    num_epochs = TorchParams.epochs
+    num_epochs = TorchParams.hyper_param['epochs']
 
     plt.subplots(figsize=(12, 4), dpi=80)
 
@@ -168,7 +168,7 @@ def train(local=False):
     
     if not local:
         model.to("cuda:0")
-        
+
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=TorchParams.hyper_param['lr'])
     scheduler = StepLR(optimizer, step_size=1, gamma=TorchParams.hyper_param['momentum'])
