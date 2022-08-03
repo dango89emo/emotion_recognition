@@ -28,6 +28,8 @@ AWS S3へと学習データをアップロードする。
  　modules.constants.AWSConfigのbucketを、希望するバケット名に変更
 前準備③：
    ローカルPCにて、AWS認証情報を準備して、上記バケットへのアクセス情報を用意。
+前準備④:
+  pip3 install -r data/requirements.txt
 """
 
 def ravdess2melspectrograms():

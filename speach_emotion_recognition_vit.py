@@ -7,12 +7,13 @@ from torch.optim.lr_scheduler import StepLR
 import random
 import timm
 from tqdm.notebook import tqdm
-from modules.constants import TorchParams, AWSConfig
+from modules.constants import TorchParams, AWSConfig, Path
 import seaborn as sns
+import argparse
+import json
 
 
-
-def train(model, criterion, train_loader, valid_loader):
+def train_main(model, criterion, train_loader, valid_loader):
     train_acc_list = []
     val_acc_list = []
     train_loss_list = []
@@ -117,19 +118,6 @@ def seed_everything():
     torch.cuda.manual_seed_all(TorchParams.seed)
     torch.backends.cudnn.deterministic = True
 
-
-def _load_training_data(base_dir):
-    x_train = np.load(os.path.join(base_dir, "train_data.npy"))
-    y_train = np.load(os.path.join(base_dir, "train_labels.npy"))
-    return x_train, y_train
-
-
-def _load_testing_data(base_dir):
-    x_test = np.load(os.path.join(base_dir, "eval_data.npy"))
-    y_test = np.load(os.path.join(base_dir, "eval_labels.npy"))
-    return x_test, y_test
-
-
 def _parse_args():
     parser = argparse.ArgumentParser()
 
@@ -143,11 +131,12 @@ def _parse_args():
 
     return parser.parse_known_args()
 
-if __name__=="__main__":
+
+def train():
     args, unknown = _parse_args()
 
-    train_data, train_labels = _load_training_data(args.train)
-    eval_data, eval_labels = _load_testing_data(args.train)
+    train_loader = torch.load(os.path.join(args.train, Path.TRAIN_LOADER.split("/")[-1]))
+    test_loader = torch.load(os.path.join(args.train, Path.TEST_LOADER.split("/")[-1]))
 
     model=timm.create_model(TorchParams.pretrained_model, pretrained=True, num_classes=len(TorchParams.classes))
     model.to("cuda:0")
@@ -159,3 +148,6 @@ if __name__=="__main__":
     
     if args.current_host == args.hosts[0]:
         torch.save(model, os.path.join(args.sm_model_dir, TorchParams.model_name))
+
+if __name__=="__main__":
+    train()

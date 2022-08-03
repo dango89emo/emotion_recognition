@@ -63,4 +63,9 @@ Transformerはattentionを用いたモデルです。
 
 
 ## 使用データ
+RAVDESS
+詳しくは、prepare_data.pyを参照。（ローカルPCから、データをAWS S3にアップする方式です。）
 
+## 実行環境
+ローカルPC：　macOS Monterey 12.5
+推論環境
